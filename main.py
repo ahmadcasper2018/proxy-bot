@@ -12,6 +12,8 @@ import asyncio
 
 load_dotenv()
 
+admin_user_id = "123456789"
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
@@ -50,7 +52,8 @@ BUTTON_TEXTS = {
     "main_menu": ["شراء بروكسي", "حسابي", "إضافة رصيد", "التواصل مع الدعم", "حول البوت"],
     "payment_options": ["شراء بروكسي يومي SOCKS 5", "شراء بروكسي مؤقت SOCKS 5", "شراء مودم روتيت", "شراء روتيت يومي"],
     "back_button": "رجوع ↪️",
-    "temp_socks_menu": ["شراء بروكسي بورت (9800)", "شراء باقة بروكسيات يومية", "اإمكانية إعادة حساب", "Button 4", "Button 5"]
+    "temp_socks_menu": ["شراء بروكسي بورت (9800)", "شراء باقة بروكسيات يومية", "اإمكانية إعادة حساب", "Button 4",
+                        "Button 5"]
 }
 
 
@@ -119,9 +122,34 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
         await ButtonState.SUPPORT.set()
         await bot.send_message(message.chat.id,
                                "التواصل مع الدعم:\nيمكنك التواصل مع الدعم على الرابط التالي: https://t.me/Proxies_bot_support")
+
+
+
     elif message.text == "إضافة رصيد":
-        await ButtonState.CHARGE.set()
-        await message.reply("You selected Button إضافة رصيد. Write your reply message:")
+        callback_options = [
+            types.InlineKeyboardButton(text="تحويل الهرم 🏧", callback_data="option1"),
+            types.InlineKeyboardButton(text="تحويل بنك بيمو 🏦", callback_data="option2"),
+            types.InlineKeyboardButton(text="📶 MTN cash", callback_data="option3"),
+            types.InlineKeyboardButton(text="📶 Syriatel cash", callback_data="option4"),
+            types.InlineKeyboardButton(text="روابط بايبال 🌐", callback_data="option5"),
+            types.InlineKeyboardButton(text="آيتونز 🎵", callback_data="option6"),
+            types.InlineKeyboardButton(text="💶 Payeer", callback_data="option7"),
+            types.InlineKeyboardButton(text="💶 USDT", callback_data="option8"),
+            types.InlineKeyboardButton(text="💳 Master Card", callback_data="option9"),
+            types.InlineKeyboardButton(text="فيزا (لاتدمج)💳", callback_data="option10")
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=2)
+        for i in range(0, len(callback_options), 2):
+            if i + 1 < len(callback_options):
+                callback_markup.row(callback_options[i], callback_options[i + 1])
+            else:
+                callback_markup.add(callback_options[i])
+
+        callback_markup.add(types.InlineKeyboardButton(text="Return", callback_data="return"))
+
+        await bot.send_message(message.chat.id, "اختر خيار إضافة الرصيد:", reply_markup=callback_markup)
+
     elif message.text == "حول البوت":
         await ButtonState.MAIN_MENU.set()
         channel_link = "رابط القناة:\nhttps://t.me/Proxies1Channel"
