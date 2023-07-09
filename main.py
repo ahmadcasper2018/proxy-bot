@@ -144,6 +144,7 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
 
 
     elif message.text == "إضافة رصيد":
+        await ButtonState.CHARGE.set()
         callback_options = [
             types.InlineKeyboardButton(text="تحويل الهرم 🏧", callback_data="option1"),
             types.InlineKeyboardButton(text="تحويل بنك بيمو 🏦", callback_data="option2"),
@@ -285,29 +286,71 @@ async def start(message: types.Message):
 #     await ButtonState.CHARGE.set()
 
 
-@dp.callback_query_handler(lambda query: query.data.startswith('option'))
+@dp.callback_query_handler(state=ButtonState.CHARGE)
 async def process_callback_option(query: types.CallbackQuery):
-    print(query)
+    print(query.data)
     callback_data = query.data
     if callback_data == 'option1':
-        # Send the first message
-            await bot.send_message(
-                query.from_user.id,
-                "● يمكنك التحويل الى الحساب التالي :\n"
-                "    0468384\n"
-                "    و ارفاق صورة لعملية التحويل.\n"
-                "    ☜ سيتم معالجة الطلب خلال 24 ساعة كحد أقصى ♥️"
-            )
+        await bot.send_message(
+            query.from_user.id,
+            "● يمكنك التحويل الى المعلومات التالية ،\n"
+            "و ارفاق صورة لوصل التحويل :\n\n"
+            "الاسم : يحيى يوسف العفيف\n"
+            "الرقم : 0997956465\n"
+            "المكان : سلحب (حماه)\n\n"
+            "ملاحظة\n"
+            "الأجور على المرسل\n"
+            "التحويل من خلال الهرم حصراً️"
+        )
 
-            # Send the second message
-            await bot.send_message(
-                query.from_user.id,
-                "🔻 ارفاق صورة لعملية التحويل"
-            )
+        await bot.send_message(
+            query.from_user.id,
+            "🔻 ارفاق صورة لعملية التحويل"
+        )
     elif callback_data == 'option2':
-        await bot.send_message(query.from_user.id, "Option 2 selected")
-    # Add more conditions for other options
+        await bot.send_message(
+            query.from_user.id,
+            "● يمكنك التحويل الى الحساب التالي :\n"
+            "    0468384\n"
+            "    و ارفاق صورة لعملية التحويل.\n"
+            "    ☜ سيتم معالجة الطلب خلال 24 ساعة كحد أقصى ♥️"
+        )
 
+        await bot.send_message(
+            query.from_user.id,
+            "🔻 ارفاق صورة لعملية التحويل"
+        )
+    # MTN
+    elif callback_data == 'option3':
+        await bot.send_message(
+            query.from_user.id,
+            "● قم بإرسال رصيد (كاش) بالقيمة التي تريد شحن حسابك بها إلى الرقم التالي :\n"
+            "0954775916\n"
+            "الحساب شخصي وليس تجاري\n"
+            "سيتم معالجة الطلب خلال 1 ساعة\n"
+            "🔵 كل 1 Mtn (كاش) تساوي 1 ل.س."
+        )
+
+        await bot.send_message(
+            query.from_user.id,
+            "🔻  أدخل  رقم عملية التحويل"
+        )
+    # Syriatel
+    elif callback_data == 'option4':
+        await bot.send_message(
+            query.from_user.id,
+            "● قم بإرسال رصيد بالقيمة التي تريد شحن حسابك بها إلى الحساب التالي (تاجر) :\n"
+            "41957706\n"
+            "دفع يدوي وليس تحويل\n"
+            "و ارفاق رقم العملية.\n"
+            "نعتمد قبول الدفع من حسابك الشخصي عبر تطبيق أقرب اليك أو من خلال الرمز ( 3040 ) فقط لا نقبل الدفع من موقع ماي سيرياتيل أو أي موقع آخر أو محل بيع\n\n"
+            "☜ يتم معالجة الطلب خلال 60 دقيقة ♥️"
+        )
+
+        await bot.send_message(
+            query.from_user.id,
+            "🔻  أدخل  رقم عملية التحويل"
+        )
 
 
 if __name__ == "__main__":
