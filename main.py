@@ -9,6 +9,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
 import aiomysql
 import asyncio
+from messages import *
 
 load_dotenv()
 
@@ -70,7 +71,8 @@ async def handle_image(message: types.Message, state: FSMContext):
     photo_path = await photo.download()
 
     # Send the photo to another user
-    await bot.send_photo(chat_id=admin_user_id, photo=open(photo_path, 'rb'))
+    with open(photo_path, 'rb') as photo_file:
+        await bot.send_photo(chat_id=admin_user_id, photo=photo_file)
 
     # Delete the downloaded photo file
     os.remove(photo_path)
@@ -170,8 +172,6 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
                 callback_markup.row(callback_options[i], callback_options[i + 1])
             else:
                 callback_markup.add(callback_options[i])
-
-        callback_markup.add(types.InlineKeyboardButton(text="Return", callback_data="return"))
 
         await bot.send_message(message.chat.id, "اختر خيار إضافة الرصيد:", reply_markup=callback_markup)
 
@@ -304,6 +304,11 @@ async def process_callback_option(query: types.CallbackQuery):
             "🔻 ارفاق صورة لعملية التحويل"
         )
         await ButtonState.UPLOAD.set()
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add(BUTTON_TEXTS["back_button"])
+        await bot.send_message(query.from_user.id, "You can send an image or press the back button:",
+                               reply_markup=keyboard)
+
     # MTN
     elif callback_data == 'mtn':
         await bot.send_message(
@@ -445,7 +450,6 @@ async def process_callback_option(query: types.CallbackQuery):
             query.from_user.id,
             " 🔻 أدخل  كود الأمازون مع كتابة قيمته بجانبه"
         )
-
 
 
 if __name__ == "__main__":
