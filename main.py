@@ -13,7 +13,7 @@ from messages import *
 
 load_dotenv()
 
-admin_user_id = "123456789"
+admin_user_id = "822439274"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +48,7 @@ class ButtonState(StatesGroup):
     SUPPORT = State()
     CHARGE = State()
     UPLOAD = State()
+    CODE = State()
     TEMP_SOCKS_MENU = State()
 
 
@@ -82,18 +83,24 @@ async def handle_image(message: types.Message, state: FSMContext):
     # Get the photo file ID
     photo_id = message.photo[-1].file_id
 
-    # Get the photo file object using the file ID
-    photo = await bot.get_file(photo_id)
-
     # Download the photo file
-    photo_path = await photo.download()
-
-    # Send the photo to another user
-    with open(photo_path, "rb") as photo_file:
-        await bot.send_photo(chat_id=admin_user_id, photo=photo_file)
+    await bot.send_photo(chat_id=admin_user_id, photo=photo_id)
 
     # Delete the downloaded photo file
-    os.remove(photo_path)
+
+    await state.finish()  # Clear the current state
+    await show_main_menu(message)  # Show the main menu with the appropriate keyboard
+
+
+@dp.message_handler(content_types=types.ContentType.TEXT, state=ButtonState.CODE)
+async def handle_code(message: types.Message, state: FSMContext):
+    # Get the photo file ID
+    text = message.text
+
+    # Download the photo file
+    await bot.send_photo(chat_id=admin_user_id, photo=text)
+
+    # Delete the downloaded photo file
 
     await state.finish()  # Clear the current state
     await show_main_menu(message)  # Show the main menu with the appropriate keyboard
@@ -164,7 +171,10 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         wallet_balance = await get_user_wallet(user_id)
         await state.finish()
-        await bot.send_message(message.chat.id, f"رصيدي ل.س: {wallet_balance}\nرصيدي بروكسيات يومية: 0\nالايدي الخاص بي: {user_id}")
+        await bot.send_message(
+            message.chat.id,
+            f"رصيدي ل.س: {wallet_balance}\nرصيدي بروكسيات يومية: 0\nالايدي الخاص بي: {user_id}",
+        )
     elif message.text == "التواصل مع الدعم":
         await ButtonState.SUPPORT.set()
         await bot.send_message(
@@ -204,7 +214,9 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
 
     elif message.text == "حول البوت":
         await ButtonState.MAIN_MENU.set()
-        await bot.send_message(message.chat.id, f"{channel_link}\n\n{group_link}\n\n{support_link}")
+        await bot.send_message(
+            message.chat.id, f"{channel_link}\n\n{group_link}\n\n{support_link}"
+        )
 
 
 @dp.message_handler(
@@ -215,8 +227,14 @@ async def temp_socks_menu_back_selected(message: types.Message, state: FSMContex
     await show_payment_options(message)
 
 
-@dp.message_handler(text=[BUTTON_TEXTS["back_button"]], state=ButtonState.PAYMENT)
+@dp.message_handler(text="رجوع ↪️", state=ButtonState.PAYMENT)
 async def payment_options_back_selected(message: types.Message, state: FSMContext):
+    await state.finish()  # Clear the current state
+    await show_main_menu(message)
+
+
+@dp.message_handler(text="رجوع ↪️", state=ButtonState.UPLOAD)
+async def upload_done(message: types.Message, state: FSMContext):
     await state.finish()  # Clear the current state
     await show_main_menu(message)
 
@@ -229,33 +247,6 @@ async def show_temp_socks_menu(message: types.Message):
         keyboard.add(button_text)
     keyboard.add(BUTTON_TEXTS["back_button"])
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
-
-
-# Handlers for button selections
-@dp.message_handler(text=BUTTON_TEXTS["main_menu"], state="*")
-async def main_menu_selected(message: types.Message, state: FSMContext):
-    await ButtonState.MAIN_MENU.set()
-    if message.text == "شراء بروكسي":
-        await ButtonState.PAYMENT.set()
-        await show_payment_options(message)
-    elif message.text == "حسابي":
-        await ButtonState.ACCOUNT.set()
-        user_id = message.from_user.id
-        wallet_balance = await get_user_wallet(user_id)
-        await state.finish()
-        await bot.send_message(message.chat.id, f"رصيدي ل.س: {wallet_balance}\nرصيدي بروكسيات يومية: 0\nالايدي الخاص بي: {user_id}")
-    elif message.text == "التواصل مع الدعم":
-        await ButtonState.SUPPORT.set()
-        await bot.send_message(
-            message.chat.id,
-            "التواصل مع الدعم:\nيمكنك التواصل مع الدعم على الرابط التالي: https://t.me/Proxies_bot_support",
-        )
-    elif message.text == "إضافة رصيد":
-        await ButtonState.CHARGE.set()
-        await message.reply("You selected Button إضافة رصيد. Write your reply message:")
-    elif message.text == "حول البوت":
-        await ButtonState.MAIN_MENU.set()
-        await bot.send_message(message.chat.id, f"{channel_link}\n\n{group_link}\n\n{support_link}")
 
 
 @dp.message_handler(text=BUTTON_TEXTS["payment_options"], state=ButtonState.PAYMENT)
