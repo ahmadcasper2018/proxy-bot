@@ -13,7 +13,7 @@ from messages import *
 
 load_dotenv()
 
-admin_user_id = "822439274"
+admin_user_id = "850718772"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -89,7 +89,7 @@ async def handle_image(message: types.Message, state: FSMContext):
 @dp.message_handler(content_types=types.ContentType.TEXT, state=ButtonState.CODE)
 async def handle_code(message: types.Message, state: FSMContext):
     text = message.text
-    await bot.send_photo(chat_id=admin_user_id, photo=text)
+    await bot.send_message(message.chat.id, text)
     await state.finish()  # Clear the current state
     await show_main_menu(message)  # Show the main menu with the appropriate keyboard
 
@@ -267,66 +267,79 @@ async def start(message: types.Message):
     await show_main_menu(message)
 
 
+def send_transfer_image(query, message):
+    await ButtonState.UPLOAD.set()
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(BUTTON_TEXTS["back_button"])
+    await bot.send_message(
+        query.from_user.id,
+        message,
+        reply_markup=keyboard,
+    )
+
+
+def send_transfer_code(query, message):
+    await ButtonState.CODE.set()
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(BUTTON_TEXTS["back_button"])
+    await bot.send_message(
+        query.from_user.id,
+        message,
+        reply_markup=keyboard,
+    )
+
+
 @dp.callback_query_handler(state=ButtonState.CHARGE)
 async def process_callback_option(query: types.CallbackQuery):
     print(query.data)
     callback_data = query.data
     if callback_data == "haram":
         await bot.send_message(query.from_user.id, haram_message)
-        await bot.send_message(query.from_user.id, image_message)
+        send_transfer_image(query, image_message)
 
     elif callback_data == "bemo":
         await bot.send_message(query.from_user.id, bemo_message)
-        await bot.send_message(query.from_user.id, image_message)
-        await ButtonState.UPLOAD.set()
-        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add(BUTTON_TEXTS["back_button"])
-        await bot.send_message(
-            query.from_user.id,
-            "You can send an image or press the back button:",
-            reply_markup=keyboard,
-        )
+        send_transfer_image(query, image_message)
 
     elif callback_data == "mtn":
         await bot.send_message(query.from_user.id, mtn_message)
-        await bot.send_message(query.from_user.id, transfer_message)
+        send_transfer_code(query, transfer_message)
 
     elif callback_data == "syriatel":
         await bot.send_message(query.from_user.id, syriatel_message)
-        await bot.send_message(query.from_user.id, transfer_message)
+        send_transfer_code(query, transfer_message)
 
     elif callback_data == "paypal":
         await bot.send_message(query.from_user.id, paypal_message)
-        await bot.send_message(query.from_user.id, paypal_link)
+        send_transfer_code(query, paypal_link)
 
     elif callback_data == "tunes":
         await bot.send_message(query.from_user.id, itunes_message)
-        await bot.send_message(query.from_user.id, itunes_link)
+        send_transfer_code(query, itunes_link)
 
     elif callback_data == "usd":
         await bot.send_message(query.from_user.id, usd_message)
-        await bot.send_message(query.from_user.id, image_message)
+        send_transfer_image(query, image_message)
 
     elif callback_data == "payeer":
         await bot.send_message(query.from_user.id, payeer_message)
-        await bot.send_message(query.from_user.id, transfer_message)
+        send_transfer_code(query, transfer_message)
 
     elif callback_data == "master":
         await bot.send_message(query.from_user.id, master_message)
-        await bot.send_message(query.from_user.id, master_code)
+        send_transfer_code(query, master_code)
 
     elif callback_data == "visa":
         await bot.send_message(query.from_user.id, visa_message)
-
-        await bot.send_message(query.from_user.id, visa_code)
+        send_transfer_code(query, visa_code)
 
     elif callback_data == "razer":
         await bot.send_message(query.from_user.id, razer_message)
-        await bot.send_message(query.from_user.id, razer_code)
+        send_transfer_code(query, razer_code)
 
     elif callback_data == "amazon":
         await bot.send_message(query.from_user.id, amazon_message)
-        await bot.send_message(query.from_user.id, amazon_code)
+        send_transfer_code(query, amazon_code)
 
 
 if __name__ == "__main__":
