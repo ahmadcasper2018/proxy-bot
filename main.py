@@ -80,28 +80,16 @@ BUTTON_TEXTS = {
 
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=ButtonState.UPLOAD)
 async def handle_image(message: types.Message, state: FSMContext):
-    # Get the photo file ID
     photo_id = message.photo[-1].file_id
-
-    # Download the photo file
     await bot.send_photo(chat_id=admin_user_id, photo=photo_id)
-
-    # Delete the downloaded photo file
-
     await state.finish()  # Clear the current state
     await show_main_menu(message)  # Show the main menu with the appropriate keyboard
 
 
 @dp.message_handler(content_types=types.ContentType.TEXT, state=ButtonState.CODE)
 async def handle_code(message: types.Message, state: FSMContext):
-    # Get the photo file ID
     text = message.text
-
-    # Download the photo file
     await bot.send_photo(chat_id=admin_user_id, photo=text)
-
-    # Delete the downloaded photo file
-
     await state.finish()  # Clear the current state
     await show_main_menu(message)  # Show the main menu with the appropriate keyboard
 
@@ -154,9 +142,6 @@ async def show_payment_options(message: types.Message):
         keyboard.add(button_text)
     keyboard.add(BUTTON_TEXTS["back_button"])
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
-
-
-# Show the temporary SOCKS menu
 
 
 # Handlers for button selections
@@ -239,7 +224,6 @@ async def upload_done(message: types.Message, state: FSMContext):
     await show_main_menu(message)
 
 
-# Show the temporary SOCKS menu
 async def show_temp_socks_menu(message: types.Message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = BUTTON_TEXTS["temp_socks_menu"]
@@ -277,7 +261,6 @@ async def charge_balance(message: types.Message, state: FSMContext):
     await show_main_menu(message)
 
 
-# Start command handler
 @dp.message_handler(CommandStart())
 async def start(message: types.Message):
     await create_user_wallet(message.from_user.id)
@@ -326,12 +309,10 @@ async def process_callback_option(query: types.CallbackQuery):
 
     elif callback_data == "payeer":
         await bot.send_message(query.from_user.id, payeer_message)
-
         await bot.send_message(query.from_user.id, transfer_message)
 
     elif callback_data == "master":
         await bot.send_message(query.from_user.id, master_message)
-
         await bot.send_message(query.from_user.id, master_code)
 
     elif callback_data == "visa":
@@ -341,12 +322,10 @@ async def process_callback_option(query: types.CallbackQuery):
 
     elif callback_data == "razer":
         await bot.send_message(query.from_user.id, razer_message)
-
         await bot.send_message(query.from_user.id, razer_code)
 
     elif callback_data == "amazon":
         await bot.send_message(query.from_user.id, amazon_message)
-
         await bot.send_message(query.from_user.id, amazon_code)
 
 
