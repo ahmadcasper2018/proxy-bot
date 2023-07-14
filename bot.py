@@ -131,10 +131,10 @@ async def show_main_menu(message: types.Message):
         if i + 1 < len(buttons):
             keyboard.row(buttons[i], buttons[i + 1])  # Add buttons in pairs
         else:
-            keyboard.add(buttons[i])  # Add the last button alone if there's only one left
+            keyboard.add(
+                buttons[i]
+            )  # Add the last button alone if there's only one left
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
-
-
 
 
 # Show the payment options menu
@@ -345,5 +345,5 @@ async def process_callback_option(query: types.CallbackQuery):
         await send_transfer_code(query, amazon_code)
 
 
-if __name__ == "__main__":
+def start_bot():
     executor.start_polling(dp, skip_updates=True)
