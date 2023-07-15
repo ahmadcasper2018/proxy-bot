@@ -11,7 +11,6 @@ class TrueSocksClient:
         params = {
             "key": self.api_key,
             "cmd": "ListOnline",
-
         }
         headers = {"Accept-Encoding": "gzip"}
         response = requests.get(self.base_url, params=params, headers=headers)

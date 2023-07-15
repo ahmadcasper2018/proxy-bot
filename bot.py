@@ -47,6 +47,7 @@ class ButtonState(StatesGroup):
     ACCOUNT = State()
     SUPPORT = State()
     CHARGE = State()
+    TRANS = State()
     UPLOAD = State()
     CODE = State()
     TEMP_SOCKS_MENU = State()
@@ -71,6 +72,10 @@ BUTTON_TEXTS = {
     "temp_socks_menu": [
         "شراء بروكسي بورت (9800)",
         "استرجاع قيمة بروكسي",
+    ],
+    "account_options": [
+        "شحن حساب non-voip",
+        "إهداء رصيد",
     ],
 }
 
@@ -158,11 +163,11 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
         await ButtonState.ACCOUNT.set()
         user_id = message.from_user.id
         wallet_balance = await get_user_wallet(user_id)
-        await state.finish()
         await bot.send_message(
             message.chat.id,
             f"رصيدي ل.س: {wallet_balance}\nرصيدي بروكسيات يومية: 0\nالايدي الخاص بي: {user_id}",
         )
+        await show_account_menu(message)
     elif message.text == "التواصل مع الدعم":
         await ButtonState.SUPPORT.set()
         await bot.send_message(
@@ -201,7 +206,6 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
         )
 
     elif message.text == "حول البوت":
-        await ButtonState.MAIN_MENU.set()
         await bot.send_message(
             message.chat.id, f"{channel_link}\n\n{group_link}\n\n{support_link}"
         )
@@ -236,11 +240,50 @@ async def show_temp_socks_menu(message: types.Message):
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
 
 
+async def show_account_menu(message: types.Message):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    buttons = BUTTON_TEXTS["account_options"]
+    for button_text in buttons:
+        keyboard.add(button_text)
+    keyboard.add(BUTTON_TEXTS["back_button"])
+    await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
+
+
 @dp.message_handler(text=BUTTON_TEXTS["payment_options"], state=ButtonState.PAYMENT)
 async def payment_option_selected(message: types.Message, state: FSMContext):
     if message.text == "شراء بروكسي يومي SOCKS 5":
         await ButtonState.TEMP_SOCKS_MENU.set()
         await show_temp_socks_menu(message)
+
+    elif message.text == BUTTON_TEXTS["back_button"]:
+        await ButtonState.MAIN_MENU.set()
+        await show_main_menu(message)
+
+
+@dp.message_handler(state=ButtonState.ACCOUNT)
+async def non_voip_selected(message: types.Message, state: FSMContext):
+    if message.text == "شحن حساب non-voip":
+        await ButtonState.TRANS.set()
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add(BUTTON_TEXTS["back_button"])
+        await bot.send_message(message.chat.id, voip_message)
+        await bot.send_message(
+            message.chat.id,
+            "🔻 قم بارسل الايميل خاص ب حسابك على الموقع",
+            reply_markup=keyboard,
+        )
+        current_state = await state.get_state()
+        print(current_state == ButtonState.TRANS.state)
+    elif message.text == BUTTON_TEXTS["back_button"]:
+        await ButtonState.MAIN_MENU.set()
+        await show_main_menu(message)
+
+
+@dp.message_handler(state=ButtonState.TRANS)
+async def non_voip_handler(message: types.Message, state: FSMContext):
+    if message.text == BUTTON_TEXTS["back_button"]:
+        await ButtonState.ACCOUNT.set()
+        await show_account_menu(message)
 
 
 @dp.message_handler(
@@ -255,6 +298,9 @@ async def temp_socks_menu_back_selected(message: types.Message, state: FSMContex
 async def payment_options_back_selected(message: types.Message, state: FSMContext):
     await state.finish()  # Clear the current state
     await show_main_menu(message)
+
+
+
 
 
 @dp.message_handler(state=ButtonState.CHARGE)
@@ -298,7 +344,7 @@ async def process_callback_option(query: types.CallbackQuery):
     callback_data = query.data
     if callback_data == "haram":
         await bot.send_message(query.from_user.id, haram_message)
-        send_transfer_image(query, image_message)
+        await send_transfer_image(query, image_message)
 
     elif callback_data == "bemo":
         await bot.send_message(query.from_user.id, bemo_message)
