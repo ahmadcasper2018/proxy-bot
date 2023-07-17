@@ -55,12 +55,11 @@ def get_data():
 
 
 if __name__ == "__main__":
-    # Start the Flask application in a separate thread
-    # flask_thread = Thread(target=app.run(port=8000))
-    # flask_thread.start()
-    #
-    # # Start the Telegram bot
-    #
-    # # Wait for the Flask thread to finish
-    # flask_thread.join()
-    start_bot()
+    flask_thread = Thread(target=app.run(port=8000))
+    flask_thread.start()
+
+    # Start the Telegram bot
+
+    # Wait for the Flask thread to finish
+    flask_thread.join()
+
