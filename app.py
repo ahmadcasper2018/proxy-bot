@@ -49,17 +49,13 @@ def get_data():
     response_dict = client.get_response_dict()
     proxy_list = response_dict["result"]["ProxyList"]
     # each country and it's states
-    country_region_dict = bind_country_isp(proxy_list)
+    country_region_dict = bind_country_state(proxy_list)
 
     return jsonify(country_region_dict)
 
 
 if __name__ == "__main__":
-    flask_thread = Thread(target=app.run(port=8000))
-    flask_thread.start()
-
-    # Start the Telegram bot
-
-    # Wait for the Flask thread to finish
-    flask_thread.join()
-
+    # flask_thread = Thread(target=app.run(port=8000))
+    # flask_thread.start()
+    # flask_thread.join()
+    start_bot()

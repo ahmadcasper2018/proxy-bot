@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import threading
+
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -11,15 +13,34 @@ from aiogram.utils import executor
 import requests
 import aiomysql
 import asyncio
+
+from api import TrueSocksClient
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
+
+
+def execute_code():
+    client = TrueSocksClient(api_key="b03a14b7128ec274b4abb70e164399b3")
+    response_dict = client.get_response_dict()
+    # Process the response data as needed
+
+# Create a new thread and start executing the code
+thread = threading.Thread(target=execute_code)
+thread.start()
+
+
+"""
+================================================================
+ٍSettings 
+================================================================
+"""
 load_dotenv()
 second = False
 email = ""
 
 second_gift = False
-gift_id = ''
+gift_id = ""
 admin_user_id = "892998733"
 
 # Set up logging
@@ -47,7 +68,19 @@ loop = asyncio.get_event_loop()
 pool = loop.run_until_complete(create_pool())
 
 
-# Define states for the conversation
+"""
+================================================================
+Socks client
+================================================================
+"""
+
+"""
+================================================================
+Define states for the conversation 
+================================================================
+"""
+
+
 class ButtonState(StatesGroup):
     MAIN_MENU = State()
     PAYMENT = State()
@@ -58,7 +91,6 @@ class ButtonState(StatesGroup):
     TRANS = State()
     UPLOAD = State()
     CODE = State()
-    TEMP_SOCKS_MENU = State()
 
 
 # Button texts
@@ -77,15 +109,17 @@ BUTTON_TEXTS = {
         "شراء روتيت يومي",
     ],
     "back_button": "رجوع ↪️",
-    "temp_socks_menu": [
-        "شراء بروكسي بورت (9800)",
-        "استرجاع قيمة بروكسي",
-    ],
     "account_options": [
         "شحن حساب non-voip",
         "إهداء رصيد",
     ],
 }
+
+"""
+================================================================
+Slider query handler
+================================================================
+"""
 
 
 @dp.inline_handler()
@@ -115,27 +149,18 @@ async def handle_inline_query(query: InlineQuery):
         error_result = InlineQueryResultArticle(
             id="error",
             title="Invalid Format",
-            input_message_content=InputTextMessageContent("Please use the following format: p:ProxyType | c:Country | s:State"),
+            input_message_content=InputTextMessageContent(
+                "Please use the following format: p:ProxyType | c:Country | s:State"
+            ),
         )
         await bot.answer_inline_query(query.id, [error_result])
 
 
-
-
-@dp.message_handler(content_types=types.ContentType.PHOTO, state=ButtonState.UPLOAD)
-async def handle_image(message: types.Message, state: FSMContext):
-    photo_id = message.photo[-1].file_id
-    await bot.send_photo(chat_id=admin_user_id, photo=photo_id)
-    await state.finish()  # Clear the current state
-    await show_main_menu(message)  # Show the main menu with the appropriate keyboard
-
-
-@dp.message_handler(content_types=types.ContentType.TEXT, state=ButtonState.CODE)
-async def handle_code(message: types.Message, state: FSMContext):
-    text = message.text
-    await bot.send_message(message.chat.id, text)
-    await state.finish()  # Clear the current state
-    await show_main_menu(message)  # Show the main menu with the appropriate keyboard
+"""
+================================================================
+DB operations
+================================================================
+"""
 
 
 async def get_user_wallet(user_id):
@@ -227,6 +252,13 @@ async def create_user_wallet(user_id):
             await conn.commit()
 
 
+"""
+================================================================
+Bot API
+================================================================
+"""
+
+
 # Show the main menu
 async def show_main_menu(message: types.Message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -239,6 +271,22 @@ async def show_main_menu(message: types.Message):
                 buttons[i]
             )  # Add the last button alone if there's only one left
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
+
+
+@dp.message_handler(content_types=types.ContentType.PHOTO, state=ButtonState.UPLOAD)
+async def handle_image(message: types.Message, state: FSMContext):
+    photo_id = message.photo[-1].file_id
+    await bot.send_photo(chat_id=admin_user_id, photo=photo_id)
+    await state.finish()  # Clear the current state
+    await show_main_menu(message)  # Show the main menu with the appropriate keyboard
+
+
+@dp.message_handler(content_types=types.ContentType.TEXT, state=ButtonState.CODE)
+async def handle_code(message: types.Message, state: FSMContext):
+    text = message.text
+    await bot.send_message(message.chat.id, text)
+    await state.finish()  # Clear the current state
+    await show_main_menu(message)  # Show the main menu with the appropriate keyboard
 
 
 # Show the payment options menu
@@ -309,30 +357,10 @@ async def main_menu_selected(message: types.Message, state: FSMContext):
         )
 
 
-
-
-
-@dp.message_handler(
-    text=[BUTTON_TEXTS["back_button"]], state=ButtonState.TEMP_SOCKS_MENU
-)
-async def temp_socks_menu_back_selected(message: types.Message, state: FSMContext):
-    await state.finish()  # Clear the current state
-    await show_payment_options(message)
-
-
 @dp.message_handler(text="رجوع ↪️", state=ButtonState.UPLOAD)
 async def upload_done(message: types.Message, state: FSMContext):
     await ButtonState.MAIN_MENU.set()  # Clear the current state
     await show_main_menu(message)
-
-
-async def show_temp_socks_menu(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    buttons = BUTTON_TEXTS["temp_socks_menu"]
-    for button_text in buttons:
-        keyboard.add(button_text)
-    keyboard.add(BUTTON_TEXTS["back_button"])
-    await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
 
 
 async def show_account_menu(message: types.Message):
@@ -342,22 +370,41 @@ async def show_account_menu(message: types.Message):
         keyboard.add(button_text)
     keyboard.add(BUTTON_TEXTS["back_button"])
 
-    await bot.send_message(
-        message.chat.id,
-        "اختر طلبك 👇🏻 :",
-        reply_markup=keyboard
-    )
+    await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
 
 
 @dp.message_handler(text=BUTTON_TEXTS["payment_options"], state=ButtonState.PAYMENT)
 async def payment_option_selected(message: types.Message, state: FSMContext):
-    if message.text == "شراء بروكسي يومي SOCKS 5":
-        await ButtonState.TEMP_SOCKS_MENU.set()
-        await show_temp_socks_menu(message)
+    if message.text == BUTTON_TEXTS["payment_options"][0]:
+        await ButtonState.SOCKS9800.set()
+        fixed_countries = [
+            "UNITED STATES",
+            "CANADA",
+            "SPAIN",
+            "GERMANY",
+            "UNITED KINGDOM",
+        ]
+        callback_options = [
+            types.InlineKeyboardButton(text=country.capitalize(), callback_data=country)
+            for country in fixed_countries
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await bot.send_message(
+            message.chat.id, socks9message, reply_markup=callback_markup
+        )
 
     elif message.text == BUTTON_TEXTS["back_button"]:
         await ButtonState.MAIN_MENU.set()
         await show_main_menu(message)
+
+
+@dp.callback_query_handler(state=ButtonState.SOCKS9800)
+async def handle_socks9800_callback(query: types.CallbackQuery):
+    data = query.data
 
 
 @dp.message_handler(state=ButtonState.ACCOUNT)
@@ -377,7 +424,7 @@ async def non_voip_selected(message: types.Message, state: FSMContext):
         await ButtonState.MAIN_MENU.set()
         await show_main_menu(message)
 
-    elif message.text == 'إهداء رصيد':
+    elif message.text == "إهداء رصيد":
         await ButtonState.GIFT.set()
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(BUTTON_TEXTS["back_button"])
@@ -450,7 +497,7 @@ async def non_voip_handler(message: types.Message, state: FSMContext):
                         f"تم شحن حسابك ب {creds} credits",
                     )
                     discounted = creds * voip_credit
-                    await withdraw_user_balance(message.from_user.id,discounted)
+                    await withdraw_user_balance(message.from_user.id, discounted)
                     await bot.send_message(
                         message.chat.id,
                         f"تم اقتطاع {discounted} من رصيد حسابك على البوت",
@@ -477,17 +524,6 @@ async def non_voip_handler(message: types.Message, state: FSMContext):
             reply_markup=keyboard,
         )
         second = True
-
-
-@dp.message_handler(
-    text=[BUTTON_TEXTS["back_button"]], state=ButtonState.TEMP_SOCKS_MENU
-)
-async def temp_socks_menu_back_selected(message: types.Message, state: FSMContext):
-    await ButtonState.PAYMENT.set()  # Clear the current state
-    await show_payment_options(message)
-
-
-
 
 
 @dp.message_handler(state=ButtonState.CHARGE)
