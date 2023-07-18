@@ -13,21 +13,40 @@ from aiogram.utils import executor
 import requests
 import aiomysql
 import asyncio
-
 from api import TrueSocksClient
+from utils import *
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
+"""
+================================================================
+Global configuration 
+================================================================
+"""
+socks_response = None
+response_lock = threading.Lock()
+
+
+"""
+================================================================
+GET socks 5 data 
+================================================================
+"""
 
 
 def execute_code():
+    global socks_response
     client = TrueSocksClient(api_key="b03a14b7128ec274b4abb70e164399b3")
     response_dict = client.get_response_dict()
     # Process the response data as needed
+    # Store the result in the shared variable
+    with response_lock:
+        socks_response = response_dict
 
-# Create a new thread and start executing the code
+
 thread = threading.Thread(target=execute_code)
 thread.start()
+thread.join()
 
 
 """
@@ -88,6 +107,10 @@ class ButtonState(StatesGroup):
     CHARGE = State()
     GIFT = State()
     SOCKS9800 = State()
+    STATE9800 = State()
+    ISP09800 = State()
+    SOCKSFILTERS = State()
+    SPEED9800 = State()
     TRANS = State()
     UPLOAD = State()
     CODE = State()
@@ -385,7 +408,9 @@ async def payment_option_selected(message: types.Message, state: FSMContext):
             "UNITED KINGDOM",
         ]
         callback_options = [
-            types.InlineKeyboardButton(text=country.capitalize(), callback_data=country)
+            types.InlineKeyboardButton(
+                text=country.capitalize(), callback_data=country.capitalize()
+            )
             for country in fixed_countries
         ]
 
@@ -403,8 +428,78 @@ async def payment_option_selected(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query_handler(state=ButtonState.SOCKS9800)
-async def handle_socks9800_callback(query: types.CallbackQuery):
-    data = query.data
+async def handle_socks9800_countries_callback(
+    query: types.CallbackQuery, state: FSMContext
+):
+    country_query = query.data.upper()
+
+    fixed_filters = [
+        "By state",
+        "BY ISP",
+        "BY Speed",
+    ]
+    callback_options = [
+        types.InlineKeyboardButton(text=element, callback_data=element)
+        for element in fixed_filters
+    ]
+
+    callback_markup = types.InlineKeyboardMarkup(row_width=1)
+    for option in callback_options:
+        callback_markup.add(option)
+
+    await ButtonState.SOCKSFILTERS.set()
+    # Store the selected country in session
+    await state.update_data(selected_country=country_query)
+
+    await bot.send_message(
+        query.from_user.id,
+        "تصنيف حسب الولاية أو المشغل او السرعة",
+        reply_markup=callback_markup,
+    )
+
+
+@dp.callback_query_handler(state=ButtonState.SOCKSFILTERS)
+async def handle_socks9800_filters_callback(
+    query: types.CallbackQuery, state: FSMContext
+):
+    query_data = query.data
+    # Store the selected filter in session
+    await state.update_data(selected_filter=query_data)
+    data = await state.get_data()
+    proxies_list = socks_response["result"]["ProxyList"]
+
+    if query_data == "By state":
+        await ButtonState.STATE9800.set()
+
+        # Replace 'data["country_query"]' with the actual country you want to filter
+        country_query = data["selected_country"]  # Replace with the desired country
+
+        states = [
+            state.capitalize() for state in get_states(proxies_list, country_query)
+        ]
+
+        # Split the states list into groups of 4
+        states_groups = [states[i : i + 4] for i in range(0, len(states), 4)]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=2)
+        for group in states_groups:
+            callback_options = [
+                types.InlineKeyboardButton(text=element, callback_data=element)
+                for element in group
+            ]
+            callback_markup.row(*callback_options)
+
+        await bot.send_message(
+            query.from_user.id,
+            "اختر الولاية المرادة:",
+            reply_markup=callback_markup,
+        )
+
+    elif query_data == "BY Speed":
+        pass
+
+    else:
+        pass
 
 
 @dp.message_handler(state=ButtonState.ACCOUNT)
