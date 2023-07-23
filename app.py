@@ -25,8 +25,8 @@ def get_data():
     return jsonify(country_region_dict)
 
 
-if __name__ == "__main__":
-    # flask_thread = Thread(target=app.run(port=8000))
-    # flask_thread.start()
-    # flask_thread.join()
-    start_bot()
+# if __name__ == "__main__":
+#     # flask_thread = Thread(target=app.run(port=8000))
+#     # flask_thread.start()
+#     # flask_thread.join()
+#     start_bot()

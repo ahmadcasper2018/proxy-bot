@@ -14,18 +14,19 @@ import requests
 import aiomysql
 import asyncio
 from api import TrueSocksClient
+from extra import *
 from utils import *
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
+
 
 """
 ================================================================
 Global configuration 
 ================================================================
 """
-socks_response = None
+socks_response = {}
 response_lock = threading.Lock()
-
 
 """
 ================================================================
@@ -48,7 +49,6 @@ thread = threading.Thread(target=execute_code)
 thread.start()
 thread.join()
 
-
 """
 ================================================================
 ٍSettings 
@@ -70,7 +70,6 @@ bot_token = os.getenv("BOT_TOKEN")
 bot = Bot(token=bot_token)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
-
 db_host = os.getenv("DB_HOST")
 db_user = os.getenv("DB_USER")
 db_password = os.getenv("DB_PASSWORD")
@@ -85,7 +84,6 @@ async def create_pool():
 
 loop = asyncio.get_event_loop()
 pool = loop.run_until_complete(create_pool())
-
 
 """
 ================================================================
@@ -108,10 +106,12 @@ class ButtonState(StatesGroup):
     GIFT = State()
     SOCKS9800 = State()
     STATE9800 = State()
+    TEST = State()
     ISP09800 = State()
     SOCKSFILTERS = State()
     SPEED9800 = State()
     TRANS = State()
+    SEX = State()
     UPLOAD = State()
     CODE = State()
 
@@ -137,47 +137,6 @@ BUTTON_TEXTS = {
         "إهداء رصيد",
     ],
 }
-
-"""
-================================================================
-Slider query handler
-================================================================
-"""
-
-
-@dp.inline_handler()
-async def handle_inline_query(query: InlineQuery):
-    query_text = query.query.lower()  # Convert query to lowercase
-    query_parts = query_text.split("|")  # Split the query by the pipe symbol "|"
-
-    if len(query_parts) == 3:
-        proxy_type = query_parts[0].strip()  # Extract proxy type
-        country = query_parts[1].strip()  # Extract country
-        state = query_parts[2].strip()  # Extract state
-
-        results = []
-        for i in range(1, 11):
-            title = f"p:{proxy_type} | c:{country} | s:{state}"
-            content = f"Dummy data {i} - p:{proxy_type} | c:{country} | s:{state}"
-            result = InlineQueryResultArticle(
-                id=str(i),
-                title=title,
-                input_message_content=InputTextMessageContent(content),
-            )
-            results.append(result)
-
-        await bot.answer_inline_query(query.id, results)
-    else:
-        # Invalid format, provide an error message
-        error_result = InlineQueryResultArticle(
-            id="error",
-            title="Invalid Format",
-            input_message_content=InputTextMessageContent(
-                "Please use the following format: p:ProxyType | c:Country | s:State"
-            ),
-        )
-        await bot.answer_inline_query(query.id, [error_result])
-
 
 """
 ================================================================
@@ -442,6 +401,9 @@ async def handle_socks9800_countries_callback(
         types.InlineKeyboardButton(text=element, callback_data=element)
         for element in fixed_filters
     ]
+    callback_options.append(
+        types.InlineKeyboardButton(text="back", callback_data="back")
+    )
 
     callback_markup = types.InlineKeyboardMarkup(row_width=1)
     for option in callback_options:
@@ -467,16 +429,13 @@ async def handle_socks9800_filters_callback(
     await state.update_data(selected_filter=query_data)
     data = await state.get_data()
     proxies_list = socks_response["result"]["ProxyList"]
-
+    country_query = data["selected_country"]
     if query_data == "By state":
         await ButtonState.STATE9800.set()
 
         # Replace 'data["country_query"]' with the actual country you want to filter
-        country_query = data["selected_country"]  # Replace with the desired country
 
-        states = [
-            state.capitalize() for state in get_states(proxies_list, country_query)
-        ]
+        states = [state for state in get_states(proxies_list, country_query)]
 
         # Split the states list into groups of 4
         states_groups = [states[i : i + 4] for i in range(0, len(states), 4)]
@@ -484,7 +443,10 @@ async def handle_socks9800_filters_callback(
         callback_markup = types.InlineKeyboardMarkup(row_width=2)
         for group in states_groups:
             callback_options = [
-                types.InlineKeyboardButton(text=element, callback_data=element)
+                types.InlineKeyboardButton(
+                    text=element.capitalize(),
+                    switch_inline_query_current_chat=f"SOCKS5 |{country_query} |{element}",
+                )
                 for element in group
             ]
             callback_markup.row(*callback_options)
@@ -498,8 +460,66 @@ async def handle_socks9800_filters_callback(
     elif query_data == "BY Speed":
         pass
 
+    elif query_data == "BY ISP":
+        await ButtonState.ISP09800.set()
+        if country_query == "UNITED STATES":
+            await choose_country_isp(bot, query, usa)
+        elif country_query == "UNITED KINGDOM":
+            await choose_country_isp(bot, query, uk)
+
+        elif country_query == "GERMANY":
+            await choose_country_isp(bot, query, germany)
+
+        elif country_query == "SPAIN":
+            await choose_country_isp(bot, query, spain)
+
+        elif country_query == "CANADA":
+            await choose_country_isp(bot, query, canada)
     else:
-        pass
+        await ButtonState.PAYMENT.set()
+        fixed_countries = [
+            "UNITED STATES",
+            "CANADA",
+            "SPAIN",
+            "GERMANY",
+            "UNITED KINGDOM",
+        ]
+        callback_options = [
+            types.InlineKeyboardButton(
+                text=country.capitalize(), callback_data=country.capitalize()
+            )
+            for country in fixed_countries
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await query.message.edit_reply_markup(reply_markup=callback_markup)
+
+
+# @dp.callback_query_handler(state=ButtonState.STATE9800)
+# async def handle_socks9800_state_filter_callback(
+#         query: types.CallbackQuery, state: FSMContext
+# ):
+#     query_data = query.data.upper()
+#     await state.update_data(selected_filter=query_data)
+#     selected_state = query_data
+#     selected_country = await state.get_data('selected_country') # Replace this with the actual country name
+#
+#     formatted_message = f"@amjad_ahmad_bot p:SOCKS5 | c: {selected_country} | s:{selected_state}"
+#
+#     # Edit the user's input message to the formatted message
+#     await bot.send_message(
+#         query.from_user.id,
+#         formatted_message,
+#         reply_to_message_id=query.message.message_id,
+#         reply_markup=types.InlineKeyboardMarkup().add(
+#             types.InlineKeyboardButton(
+#                 text="Select State", switch_inline_query_current_chat=f"SOCKS5 | c: {selected_country} | s:{selected_state}"
+#             )
+#         ),
+#     )
 
 
 @dp.message_handler(state=ButtonState.ACCOUNT)
@@ -530,6 +550,7 @@ async def non_voip_selected(message: types.Message, state: FSMContext):
         )
 
 
+# todo fix it with states
 @dp.message_handler(state=ButtonState.GIFT)
 async def gift_handler(message: types.Message, state: FSMContext):
     global second_gift, gift_id
@@ -628,10 +649,10 @@ async def charge_balance(message: types.Message, state: FSMContext):
     await show_main_menu(message)
 
 
-@dp.message_handler(CommandStart())
+@dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    await create_user_wallet(message.from_user.id)
     await ButtonState.MAIN_MENU.set()
+    await create_user_wallet(message.from_user.id)
     await show_main_menu(message)
 
 
@@ -709,6 +730,56 @@ async def process_callback_option(query: types.CallbackQuery):
         await send_transfer_code(query, amazon_code)
 
 
-def start_bot():
-    dp.register_inline_handler(handle_inline_query)
+"""
+================================================================
+INLINE QUERIES HANDLERS
+================================================================
+"""
+
+
+@dp.inline_handler(state=ButtonState.STATE9800)
+async def handle_inline_query(query: InlineQuery):
+    query_text = query.query  # Convert query to lowercase
+    query_parts = query_text.split("|")  # Split the query by the pipe symbol "|"
+
+    if len(query_parts) == 3:
+        proxy_type = query_parts[0].strip()  # Extract proxy type
+        country = query_parts[1].strip()  # Extract country
+        state = query_parts[2].strip()  # Extract state
+        state_proxies = filter_by_state(socks_response['result']['ProxyList'],state)
+        state_proxies = state_proxies[:40]
+        results = []
+        for proxy in state_proxies:
+            id = proxy['ProxyID']
+            city = proxy['City']
+            code = proxy['CountryCode']
+            zip = proxy['ZipCode']
+            isp = proxy['ISP']
+            title = f"{code}-{state}-{city}-{zip}"
+            content = f"Proxy id {id} - p:{proxy_type} | c:{country} | s:{state}"
+            result = InlineQueryResultArticle(
+                id=str(id),
+                title=title,
+                input_message_content=InputTextMessageContent(content),
+                thumb_url="https://static.vecteezy.com/system/resources/previews/008/174/237/non_2x/internet-icon-click-to-go-online-icon-connect-to-internet-icon-web-surfing-and-internet-symbol-free-vector.jpg",
+                description =isp
+
+
+            )
+            results.append(result)
+
+        await bot.answer_inline_query(query.id, results)
+    else:
+        # Invalid format, provide an error message
+        error_result = InlineQueryResultArticle(
+            id="error",
+            title="Invalid Format",
+            input_message_content=InputTextMessageContent(
+                "Please use the following format: p:ProxyType | c:Country | s:State"
+            ),
+        )
+        await bot.answer_inline_query(query.id, [error_result])
+
+
+if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
