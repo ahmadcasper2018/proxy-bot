@@ -108,7 +108,7 @@ class ButtonState(StatesGroup):
     STATE9800 = State()
     TEST = State()
     ISP09800 = State()
-    SOCKSFILTERS = State()
+    SOCKSFILTERSELECTED = State()
     SPEED9800 = State()
     TRANS = State()
     SEX = State()
@@ -355,9 +355,60 @@ async def show_account_menu(message: types.Message):
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
 
 
-@dp.message_handler(text=BUTTON_TEXTS["payment_options"], state=ButtonState.PAYMENT)
+@dp.message_handler(state=ButtonState.PAYMENT)
 async def payment_option_selected(message: types.Message, state: FSMContext):
-    if message.text == BUTTON_TEXTS["payment_options"][0]:
+    await ButtonState.SOCKS9800.set()
+    fixed_countries = [
+        "UNITED STATES",
+        "CANADA",
+        "SPAIN",
+        "GERMANY",
+        "UNITED KINGDOM",
+    ]
+    callback_options = [
+        types.InlineKeyboardButton(
+            text=country.capitalize(), callback_data=country.capitalize()
+        )
+        for country in fixed_countries
+    ]
+
+    callback_markup = types.InlineKeyboardMarkup(row_width=1)
+    for option in callback_options:
+        callback_markup.add(option)
+
+    await bot.send_message(message.chat.id, socks9message, reply_markup=callback_markup)
+
+
+@dp.callback_query_handler(state=ButtonState.SOCKS9800)
+async def handle_socks9800_countries_callback(
+    query: types.CallbackQuery, state: FSMContext
+):
+    if not query.data == "back":
+        country_query = query.data.upper()
+
+        fixed_filters = [
+            "By state",
+            "BY ISP",
+            "BY Speed",
+        ]
+        callback_options = [
+            types.InlineKeyboardButton(text=element, callback_data=element)
+            for element in fixed_filters
+        ]
+        callback_options.append(
+            types.InlineKeyboardButton(text="back", callback_data="back")
+        )
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await ButtonState.SOCKSFILTERSELECTED.set()
+        # Store the selected country in session
+        await state.update_data(selected_country=country_query)
+
+        await query.message.edit_reply_markup(reply_markup=callback_markup)
+    else:
         await ButtonState.SOCKS9800.set()
         fixed_countries = [
             "UNITED STATES",
@@ -376,51 +427,10 @@ async def payment_option_selected(message: types.Message, state: FSMContext):
         callback_markup = types.InlineKeyboardMarkup(row_width=1)
         for option in callback_options:
             callback_markup.add(option)
-
-        await bot.send_message(
-            message.chat.id, socks9message, reply_markup=callback_markup
-        )
-
-    elif message.text == BUTTON_TEXTS["back_button"]:
-        await ButtonState.MAIN_MENU.set()
-        await show_main_menu(message)
+        await query.message.edit_reply_markup(reply_markup=callback_markup)
 
 
-@dp.callback_query_handler(state=ButtonState.SOCKS9800)
-async def handle_socks9800_countries_callback(
-    query: types.CallbackQuery, state: FSMContext
-):
-    country_query = query.data.upper()
-
-    fixed_filters = [
-        "By state",
-        "BY ISP",
-        "BY Speed",
-    ]
-    callback_options = [
-        types.InlineKeyboardButton(text=element, callback_data=element)
-        for element in fixed_filters
-    ]
-    callback_options.append(
-        types.InlineKeyboardButton(text="back", callback_data="back")
-    )
-
-    callback_markup = types.InlineKeyboardMarkup(row_width=1)
-    for option in callback_options:
-        callback_markup.add(option)
-
-    await ButtonState.SOCKSFILTERS.set()
-    # Store the selected country in session
-    await state.update_data(selected_country=country_query)
-
-    await bot.send_message(
-        query.from_user.id,
-        "تصنيف حسب الولاية أو المشغل او السرعة",
-        reply_markup=callback_markup,
-    )
-
-
-@dp.callback_query_handler(state=ButtonState.SOCKSFILTERS)
+@dp.callback_query_handler(state=ButtonState.SOCKSFILTERSELECTED)
 async def handle_socks9800_filters_callback(
     query: types.CallbackQuery, state: FSMContext
 ):
@@ -450,6 +460,9 @@ async def handle_socks9800_filters_callback(
                 for element in group
             ]
             callback_markup.row(*callback_options)
+        callback_markup.row(
+            types.InlineKeyboardButton(text="back", callback_data="back")
+        )
 
         await bot.send_message(
             query.from_user.id,
@@ -476,50 +489,59 @@ async def handle_socks9800_filters_callback(
         elif country_query == "CANADA":
             await choose_country_isp(bot, query, canada)
     else:
-        await ButtonState.PAYMENT.set()
-        fixed_countries = [
-            "UNITED STATES",
-            "CANADA",
-            "SPAIN",
-            "GERMANY",
-            "UNITED KINGDOM",
+        await ButtonState.SOCKS9800.set()
+        await handle_socks9800_countries_callback(query, state)
+
+
+
+@dp.callback_query_handler(state=ButtonState.STATE9800)
+async def handle_socks9800_state_filter_callback(
+        query: types.CallbackQuery, state: FSMContext
+):
+    query_data = query.data
+    if query_data == 'back':
+        data = await state.get_data()
+        country_query = data["selected_country"]
+        fixed_filters = [
+            "By state",
+            "BY ISP",
+            "BY Speed",
         ]
         callback_options = [
-            types.InlineKeyboardButton(
-                text=country.capitalize(), callback_data=country.capitalize()
-            )
-            for country in fixed_countries
+            types.InlineKeyboardButton(text=element, callback_data=element)
+            for element in fixed_filters
         ]
+        callback_options.append(
+            types.InlineKeyboardButton(text="back", callback_data="back")
+        )
 
         callback_markup = types.InlineKeyboardMarkup(row_width=1)
         for option in callback_options:
             callback_markup.add(option)
 
+        await ButtonState.SOCKSFILTERSELECTED.set()
+        # Store the selected country in session
+        await state.update_data(selected_country=country_query)
+
         await query.message.edit_reply_markup(reply_markup=callback_markup)
 
 
-# @dp.callback_query_handler(state=ButtonState.STATE9800)
-# async def handle_socks9800_state_filter_callback(
-#         query: types.CallbackQuery, state: FSMContext
-# ):
-#     query_data = query.data.upper()
-#     await state.update_data(selected_filter=query_data)
-#     selected_state = query_data
-#     selected_country = await state.get_data('selected_country') # Replace this with the actual country name
-#
-#     formatted_message = f"@amjad_ahmad_bot p:SOCKS5 | c: {selected_country} | s:{selected_state}"
-#
-#     # Edit the user's input message to the formatted message
-#     await bot.send_message(
-#         query.from_user.id,
-#         formatted_message,
-#         reply_to_message_id=query.message.message_id,
-#         reply_markup=types.InlineKeyboardMarkup().add(
-#             types.InlineKeyboardButton(
-#                 text="Select State", switch_inline_query_current_chat=f"SOCKS5 | c: {selected_country} | s:{selected_state}"
-#             )
-#         ),
-#     )
+    # selected_state = query_data
+    # selected_country = await state.get_data('selected_country') # Replace this with the actual country name
+    #
+    # formatted_message = f"@amjad_ahmad_bot p:SOCKS5 | c: {selected_country} | s:{selected_state}"
+    #
+    # # Edit the user's input message to the formatted message
+    # await bot.send_message(
+    #     query.from_user.id,
+    #     formatted_message,
+    #     reply_to_message_id=query.message.message_id,
+    #     reply_markup=types.InlineKeyboardMarkup().add(
+    #         types.InlineKeyboardButton(
+    #             text="Select State", switch_inline_query_current_chat=f"SOCKS5 | c: {selected_country} | s:{selected_state}"
+    #         )
+    #     ),
+    # )
 
 
 @dp.message_handler(state=ButtonState.ACCOUNT)
@@ -649,7 +671,7 @@ async def charge_balance(message: types.Message, state: FSMContext):
     await show_main_menu(message)
 
 
-@dp.message_handler(commands=['start'])
+@dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await ButtonState.MAIN_MENU.set()
     await create_user_wallet(message.from_user.id)
@@ -746,15 +768,15 @@ async def handle_inline_query(query: InlineQuery):
         proxy_type = query_parts[0].strip()  # Extract proxy type
         country = query_parts[1].strip()  # Extract country
         state = query_parts[2].strip()  # Extract state
-        state_proxies = filter_by_state(socks_response['result']['ProxyList'],state)
+        state_proxies = filter_by_state(socks_response["result"]["ProxyList"], state)
         state_proxies = state_proxies[:40]
         results = []
         for proxy in state_proxies:
-            id = proxy['ProxyID']
-            city = proxy['City']
-            code = proxy['CountryCode']
-            zip = proxy['ZipCode']
-            isp = proxy['ISP']
+            id = proxy["ProxyID"]
+            city = proxy["City"]
+            code = proxy["CountryCode"]
+            zip = proxy["ZipCode"]
+            isp = proxy["ISP"]
             title = f"{code}-{state}-{city}-{zip}"
             content = f"Proxy id {id} - p:{proxy_type} | c:{country} | s:{state}"
             result = InlineQueryResultArticle(
@@ -762,9 +784,7 @@ async def handle_inline_query(query: InlineQuery):
                 title=title,
                 input_message_content=InputTextMessageContent(content),
                 thumb_url="https://static.vecteezy.com/system/resources/previews/008/174/237/non_2x/internet-icon-click-to-go-online-icon-connect-to-internet-icon-web-surfing-and-internet-symbol-free-vector.jpg",
-                description =isp
-
-
+                description=isp,
             )
             results.append(result)
 
