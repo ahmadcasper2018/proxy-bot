@@ -2,7 +2,8 @@ import json
 import logging
 import os
 import threading
-
+import time
+from celery import Celery
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -18,6 +19,12 @@ from extra import *
 from utils import *
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
+
+broker_url = 'redis://localhost:6379/0'
+result_backend = 'redis://localhost:6379/0'
+
+app = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
+app.config_from_object('celery_config')
 
 
 """
@@ -389,12 +396,18 @@ async def handle_socks9800_countries_callback(
         fixed_filters = [
             "By state",
             "BY ISP",
-            "BY Speed",
         ]
         callback_options = [
             types.InlineKeyboardButton(text=element, callback_data=element)
             for element in fixed_filters
         ]
+        callback_options.append(
+            types.InlineKeyboardButton(
+                text="BY Speed",
+                switch_inline_query_current_chat=f"SOCKS5 |{country_query}",
+            )
+        )
+
         callback_options.append(
             types.InlineKeyboardButton(text="back", callback_data="back")
         )
@@ -464,53 +477,68 @@ async def handle_socks9800_filters_callback(
             types.InlineKeyboardButton(text="back", callback_data="back")
         )
 
-        await bot.send_message(
-            query.from_user.id,
-            "اختر الولاية المرادة:",
-            reply_markup=callback_markup,
-        )
+        await query.message.edit_reply_markup(reply_markup=callback_markup)
 
     elif query_data == "BY Speed":
-        pass
+        await ButtonState.SPEED9800.set()
+        countries = filter_by_country(proxies_list, country_query)
+        proxies = sort_proxies_by_speed(countries)
+
+        callback_options = [
+            types.InlineKeyboardButton(
+                text=f"{proxy['ISP']} | {proxy['UpTimeQuality']}% | {proxy['Speed']}",
+                switch_inline_query_current_chat=f"SOCKS5 |{country_query} |{proxy['Region']}",
+            )
+            for proxy in proxies
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await query.message.edit_reply_markup(reply_markup=callback_markup)
 
     elif query_data == "BY ISP":
-        await ButtonState.ISP09800.set()
         if country_query == "UNITED STATES":
-            await choose_country_isp(bot, query, usa)
+            await choose_country_isp(bot, query, usa, "UNITED STATES")
         elif country_query == "UNITED KINGDOM":
-            await choose_country_isp(bot, query, uk)
+            await choose_country_isp(bot, query, uk, "UNITED KINGDOM")
 
         elif country_query == "GERMANY":
-            await choose_country_isp(bot, query, germany)
+            await choose_country_isp(bot, query, germany, "GERMANY")
 
         elif country_query == "SPAIN":
-            await choose_country_isp(bot, query, spain)
+            await choose_country_isp(bot, query, spain, "SPAIN")
 
         elif country_query == "CANADA":
-            await choose_country_isp(bot, query, canada)
+            await choose_country_isp(bot, query, canada, "CANADA")
     else:
         await ButtonState.SOCKS9800.set()
         await handle_socks9800_countries_callback(query, state)
 
 
-
 @dp.callback_query_handler(state=ButtonState.STATE9800)
 async def handle_socks9800_state_filter_callback(
-        query: types.CallbackQuery, state: FSMContext
+    query: types.CallbackQuery, state: FSMContext
 ):
     query_data = query.data
-    if query_data == 'back':
+    if query_data == "back":
         data = await state.get_data()
         country_query = data["selected_country"]
         fixed_filters = [
             "By state",
             "BY ISP",
-            "BY Speed",
         ]
         callback_options = [
             types.InlineKeyboardButton(text=element, callback_data=element)
             for element in fixed_filters
         ]
+        callback_options.append(
+            types.InlineKeyboardButton(
+                text="BY Speed",
+                switch_inline_query_current_chat=f"SOCKS5 |{country_query}",
+            )
+        )
         callback_options.append(
             types.InlineKeyboardButton(text="back", callback_data="back")
         )
@@ -524,7 +552,6 @@ async def handle_socks9800_state_filter_callback(
         await state.update_data(selected_country=country_query)
 
         await query.message.edit_reply_markup(reply_markup=callback_markup)
-
 
     # selected_state = query_data
     # selected_country = await state.get_data('selected_country') # Replace this with the actual country name
@@ -760,7 +787,7 @@ INLINE QUERIES HANDLERS
 
 
 @dp.inline_handler(state=ButtonState.STATE9800)
-async def handle_inline_query(query: InlineQuery):
+async def handle_inline_socks_state_query(query: InlineQuery):
     query_text = query.query  # Convert query to lowercase
     query_parts = query_text.split("|")  # Split the query by the pipe symbol "|"
 
@@ -778,7 +805,7 @@ async def handle_inline_query(query: InlineQuery):
             zip = proxy["ZipCode"]
             isp = proxy["ISP"]
             title = f"{code}-{state}-{city}-{zip}"
-            content = f"Proxy id {id} - p:{proxy_type} | c:{country} | s:{state}"
+            content = f"{proxy_type}:{id}"
             result = InlineQueryResultArticle(
                 id=str(id),
                 title=title,
@@ -788,6 +815,85 @@ async def handle_inline_query(query: InlineQuery):
             )
             results.append(result)
 
+        await bot.answer_inline_query(query.id, results)
+    else:
+        # Invalid format, provide an error message
+        error_result = InlineQueryResultArticle(
+            id="error",
+            title="Invalid Format",
+            input_message_content=InputTextMessageContent(
+                "Please use the following format: p:ProxyType | c:Country | s:State"
+            ),
+        )
+        await bot.answer_inline_query(query.id, [error_result])
+
+
+@dp.inline_handler(state=ButtonState.SOCKSFILTERSELECTED)
+async def handle_socks_speed_or_isp_query(query: InlineQuery):
+    query_text = query.query  # Convert query to lowercase
+    query_parts = query_text.split("|")  # Split the query by the pipe symbol "|"
+
+    if len(query_parts) == 2:
+        proxy_type = query_parts[0].strip()  # Extract proxy type
+        country = query_parts[1].strip()  # Extract country
+        # proxies = sort_proxies_by_speed(countries)
+        country_proxies = filter_by_country(
+            socks_response["result"]["ProxyList"], country
+        )
+        country_proxies = country_proxies[:40]
+        proxies = sort_proxies_by_speed(country_proxies)
+        results = []
+
+        for proxy in proxies:
+            id = proxy["ProxyID"]
+            city = proxy["City"]
+            code = proxy["CountryCode"]
+            zip = proxy["ZipCode"]
+            speed = proxy["Speed"]
+            quality = proxy["UpTimeQuality"]
+            isp = proxy["ISP"]
+            title = f"{city}-speed:{speed}-quality:{quality}"
+            content = f"{proxy_type}:{id}"
+            result = InlineQueryResultArticle(
+                id=str(id),
+                title=title,
+                input_message_content=InputTextMessageContent(content),
+                thumb_url="https://static.vecteezy.com/system/resources/previews/008/174/237/non_2x/internet-icon-click-to-go-online-icon-connect-to-internet-icon-web-surfing-and-internet-symbol-free-vector.jpg",
+                description=isp,
+            )
+            results.append(result)
+
+        await bot.answer_inline_query(query.id, results)
+    elif len(query_parts) == 4:
+        proxy_type = query_parts[0].strip()  # Extract proxy type
+        country = query_parts[2].strip()
+        isp = query_parts[3].strip()
+        country_proxies = filter_by_country(
+            socks_response["result"]["ProxyList"], country
+        )
+        country_proxies = country_proxies
+        proxies = filter_proxy_by_isp(country_proxies, isp)
+        proxies = proxies[:40]
+        results = []
+
+        for proxy in proxies:
+            id = proxy["ProxyID"]
+            city = proxy["City"]
+            code = proxy["CountryCode"]
+            zip = proxy["ZipCode"]
+            speed = proxy["Speed"]
+            quality = proxy["UpTimeQuality"]
+            isp = proxy["ISP"]
+            title = f"{city}-speed:{speed}-quality:{quality}"
+            content = f"{proxy_type}:{id}"
+            result = InlineQueryResultArticle(
+                id=str(id),
+                title=title,
+                input_message_content=InputTextMessageContent(content),
+                thumb_url="https://static.vecteezy.com/system/resources/previews/008/174/237/non_2x/internet-icon-click-to-go-online-icon-connect-to-internet-icon-web-surfing-and-internet-symbol-free-vector.jpg",
+                description=isp,
+            )
+            results.append(result)
         await bot.answer_inline_query(query.id, results)
     else:
         # Invalid format, provide an error message
