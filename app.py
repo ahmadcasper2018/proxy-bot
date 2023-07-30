@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from threading import Thread
-from bot import start_bot
 from api import TrueSocksClient
 from utils import *
 

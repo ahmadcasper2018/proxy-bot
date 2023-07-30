@@ -1,30 +1,30 @@
 import json
 import logging
 import os
-import threading
-import time
 from celery import Celery
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Command, CommandStart
+import time
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
 import requests
 import aiomysql
 import asyncio
-from api import TrueSocksClient
+from api import PremSocksClient
 from extra import *
 from utils import *
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
-broker_url = 'redis://localhost:6379/0'
-result_backend = 'redis://localhost:6379/0'
+from tasks import *
 
-app = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
-app.config_from_object('celery_config')
+app = Celery(
+    "tasks", broker="redis://localhost:6379/0", backend="redis://localhost:6379/0"
+)
+app.config_from_object("celery_config")
 
 
 """
@@ -32,8 +32,7 @@ app.config_from_object('celery_config')
 Global configuration 
 ================================================================
 """
-socks_response = {}
-response_lock = threading.Lock()
+
 
 """
 ================================================================
@@ -41,20 +40,6 @@ GET socks 5 data
 ================================================================
 """
 
-
-def execute_code():
-    global socks_response
-    client = TrueSocksClient(api_key="b03a14b7128ec274b4abb70e164399b3")
-    response_dict = client.get_response_dict()
-    # Process the response data as needed
-    # Store the result in the shared variable
-    with response_lock:
-        socks_response = response_dict
-
-
-thread = threading.Thread(target=execute_code)
-thread.start()
-thread.join()
 
 """
 ================================================================
@@ -908,4 +893,16 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
 
 
 if __name__ == "__main__":
+    result = get_daily_socks_proxies.delay()
+    usa_perm_result = get_perm_socks_usa.delay()
+    uk_perms_result = get_perm_socks_uk.delay()
+    canada_perm_result = get_perm_socks_canada.delay()
+    germany_perm_result = get_perm_socks_germany.delay()
+    spain_perm_result = get_perm_socks_spain.delay()
+    socks_response = result.get()
+    usa_response = usa_perm_result.get()
+    uk_response = uk_perms_result.get()
+    canada_response = canada_perm_result.get()
+    germany_response = germany_perm_result.get()
+    spain_response = spain_perm_result.get()
     executor.start_polling(dp, skip_updates=True)
