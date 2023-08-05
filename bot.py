@@ -26,20 +26,17 @@ app = Celery(
 )
 app.config_from_object("celery_config")
 
-
 """
 ================================================================
 Global configuration 
 ================================================================
 """
 
-
 """
 ================================================================
 GET socks 5 data 
 ================================================================
 """
-
 
 """
 ================================================================
@@ -135,6 +132,48 @@ BUTTON_TEXTS = {
 DB operations
 ================================================================
 """
+
+
+class UserDataTable:
+    def __init__(self, table_name):
+        self.table_name = table_name
+
+    async def create_table(self):
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {self.table_name} (
+                        data CHAR(255)
+                    )
+                    """
+                )
+                await conn.commit()
+
+    async def add_data(self, data):
+        await self.create_table()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"""
+                    INSERT INTO {self.table_name} (data)
+                    VALUES (%s)
+                    """,
+                    (data,),
+                )
+                await conn.commit()
+
+    async def get_data_list(self):
+        await self.create_table()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"""
+                    SELECT data FROM {self.table_name}
+                    """
+                )
+                results = await cur.fetchall()
+                return [result[0] for result in results]
 
 
 async def get_user_wallet(user_id):
@@ -373,7 +412,7 @@ async def payment_option_selected(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(state=ButtonState.SOCKS9800)
 async def handle_socks9800_countries_callback(
-    query: types.CallbackQuery, state: FSMContext
+        query: types.CallbackQuery, state: FSMContext
 ):
     if not query.data == "back":
         country_query = query.data.upper()
@@ -430,7 +469,7 @@ async def handle_socks9800_countries_callback(
 
 @dp.callback_query_handler(state=ButtonState.SOCKSFILTERSELECTED)
 async def handle_socks9800_filters_callback(
-    query: types.CallbackQuery, state: FSMContext
+        query: types.CallbackQuery, state: FSMContext
 ):
     query_data = query.data
     # Store the selected filter in session
@@ -446,7 +485,7 @@ async def handle_socks9800_filters_callback(
         states = [state for state in get_states(proxies_list, country_query)]
 
         # Split the states list into groups of 4
-        states_groups = [states[i : i + 4] for i in range(0, len(states), 4)]
+        states_groups = [states[i: i + 4] for i in range(0, len(states), 4)]
 
         callback_markup = types.InlineKeyboardMarkup(row_width=2)
         for group in states_groups:
@@ -504,7 +543,7 @@ async def handle_socks9800_filters_callback(
 
 @dp.callback_query_handler(state=ButtonState.STATE9800)
 async def handle_socks9800_state_filter_callback(
-    query: types.CallbackQuery, state: FSMContext
+        query: types.CallbackQuery, state: FSMContext
 ):
     query_data = query.data
     if query_data == "back":
@@ -893,16 +932,10 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
 
 
 if __name__ == "__main__":
-    result = get_daily_socks_proxies.delay()
-    usa_perm_result = get_perm_socks_usa.delay()
-    uk_perms_result = get_perm_socks_uk.delay()
-    canada_perm_result = get_perm_socks_canada.delay()
-    germany_perm_result = get_perm_socks_germany.delay()
-    spain_perm_result = get_perm_socks_spain.delay()
-    socks_response = result.get()
-    usa_response = usa_perm_result.get()
-    uk_response = uk_perms_result.get()
-    canada_response = canada_perm_result.get()
-    germany_response = germany_perm_result.get()
-    spain_response = spain_perm_result.get()
+    socks_response = get_perm_socks_usa.delay().get()
+    usa_response = get_perm_socks_usa.delay().get()
+    uk_response = get_perm_socks_uk.delay().get()
+    canada_response = get_perm_socks_canada.delay().get()
+    germany_response = get_perm_socks_germany.delay().get()
+    spain_response = get_perm_socks_spain.delay().get()
     executor.start_polling(dp, skip_updates=True)
