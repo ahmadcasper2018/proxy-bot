@@ -28,7 +28,8 @@ def bind_country_state(proxy_list):
 
 
 def sort_proxies_by_speed(proxies_list):
-    sorted_proxies = sorted(proxies_list, key=lambda x: x["Speed"])
+    filtered_proxies = [proxy for proxy in proxies_list if proxy["UpTimeQuality"] >= 20]
+    sorted_proxies = sorted(filtered_proxies, key=lambda x: x["Speed"], reverse=True)
     return sorted_proxies
 
 
@@ -46,3 +47,10 @@ def bind_country_isp(proxy_list):
     for proxy in proxy_list:
         country_isp_dict[proxy["Country"]].add(proxy["ISP"])
     return {country: list(isps) for country, isps in country_isp_dict.items()}
+
+
+def get_dict_by_proxy_id(proxy_list, proxy_id):
+    for proxy_dict in proxy_list:
+        if proxy_dict["ProxyID"] == proxy_id:
+            return proxy_dict
+    return None

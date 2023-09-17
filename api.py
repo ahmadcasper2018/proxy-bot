@@ -25,6 +25,15 @@ class TrueSocksClient:
             print("Error: Failed to fetch data from API")
             return None
 
+    def order(self, proxy):
+        params = {"key": self.api_key, "cmd": "RegularProxyBuy", "proxyid": proxy}
+        response = requests.get(self.base_url, params=params)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("Error: Failed to fetch data from API")
+            return None
+
     def get_response_dict(self):
         data = self.list_search()
         if not data:
@@ -37,21 +46,17 @@ class PremSocksClient:
     def __init__(self, api_key):
         self.api_key = api_key
         self.base_url = "https://premsocks.com/api/v1/socks/"
-        self.max_retries = 8  # Maximum number of retries
+        self.max_retries = 12  # Maximum number of retries
         self.retry_delay = 10  # Delay between retries in seconds
 
-    def get_country_proxies(self, country, isp=None):
+    def get_country_proxies(self, country, isp):
         if not isinstance(country, str) or not country.strip():
             raise ValueError("Country must be a non-empty string")
 
         headers = {"Authorization": f"Bearer {self.api_key}"}
         params = {"country": country}
         if isp:
-            params.update(
-                {
-                    'isp': isp
-                }
-            )
+            params.update({"isp": isp})
 
         for _ in range(self.max_retries):
             try:
@@ -84,8 +89,9 @@ class PremSocksClient:
     def get_spain(self):
         return self.get_country_proxies("ES")
 
+    @classmethod
     def get_isp_for_country(self, country):
-        if country == "US":
+        if country == "UNITED STATES":
             return [
                 "AT&T Services",
                 "CenturyLink",
@@ -93,9 +99,9 @@ class PremSocksClient:
                 "Comcast Cable",
                 "Cox Communications",
                 "T-Mobile USA",
-                "verizon"
+                "verizon",
             ]
-        elif country == "DE":
+        elif country == "GERMANY":
             return [
                 "Alibaba",
                 "Vodafone Germany",
@@ -105,7 +111,7 @@ class PremSocksClient:
                 "Microsoft Azure",
                 "servinga GmbH",
             ]
-        elif country == "GB":
+        elif country == "UNITED KINGDOM":
             return [
                 "Giganet Limited",
                 "Digital Ocean",
@@ -114,9 +120,9 @@ class PremSocksClient:
                 "EE",
                 "Oracle Cloud",
                 "Wireless Logic Limited",
-                "Sky Broadband"
+                "Sky Broadband",
             ]
-        elif country == "CA":
+        elif country == "CANADA":
             return [
                 "EBOX",
                 "OVH SAS",
@@ -141,20 +147,15 @@ class PremSocksClient:
         return self.get_country_proxies(country, isp)
 
     def get_random_proxy(self, country, isp):
-        proxies = self.get_final_proxies(country, isp)['data']
+        proxies = self.get_final_proxies(country, isp)["data"]
         if proxies:
-            return random.choice(proxies)['id']
+            return random.choice(proxies)["id"]
         else:
             return None
 
     def order_proxy(self, country, isp):
         proxy_id = self.get_random_proxy(country, isp)
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        response = requests.get(
-            self.base_url + str(proxy_id), headers=headers
-        )
+        response = requests.get(self.base_url + str(proxy_id), headers=headers)
         return response.json()
 
-
-client = PremSocksClient(api_key=config('SOCKS_PREM'))
-print(client.order_proxy('US', 'Spectrum'))

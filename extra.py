@@ -37,3 +37,12 @@ async def choose_country_isp(bot, query, country, country_name):
     callback_markup.row(types.InlineKeyboardButton(text="back", callback_data="back"))
 
     await query.message.edit_reply_markup(reply_markup=callback_markup)
+
+
+prem_mapper = {
+    "UNITED STATES": "US",
+    "CANADA": "CA",
+    "SPAIN": "ES",
+    "GERMANY": "DE",
+    "UNITED KINGDOM": "GB",
+}

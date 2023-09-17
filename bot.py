@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+from builtins import print
+from decouple import config
 from celery import Celery
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
@@ -14,12 +16,15 @@ import requests
 import aiomysql
 import asyncio
 from api import PremSocksClient
+from rotate_utils import *
 from extra import *
 from utils import *
 from messages import *
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
 from tasks import *
+
+responses = {}
 
 app = Celery(
     "tasks", broker="redis://localhost:6379/0", backend="redis://localhost:6379/0"
@@ -93,6 +98,7 @@ class ButtonState(StatesGroup):
     ACCOUNT = State()
     CHARGE = State()
     GIFT = State()
+    PAYMENT_OPTIONS = State()
     SOCKS9800 = State()
     STATE9800 = State()
     TEST = State()
@@ -103,6 +109,10 @@ class ButtonState(StatesGroup):
     SEX = State()
     UPLOAD = State()
     CODE = State()
+    PERM_C = State()
+    PERM_I = State()
+    ROTATE = State()
+    ROTATE_CITY = State()
 
 
 # Button texts
@@ -312,12 +322,152 @@ async def show_payment_options(message: types.Message):
     await bot.send_message(message.chat.id, "اختر طلبك 👇🏻 :", reply_markup=keyboard)
 
 
+@dp.message_handler(state=ButtonState.PAYMENT_OPTIONS)
+async def payment_option_selected(message: types.Message, state: FSMContext):
+    if message.text == "شراء بروكسي يومي SOCKS 5":
+        await ButtonState.PAYMENT.set()
+        await socks_option_selected(message, state)
+    elif message.text == "شراء بروكسي مؤقت SOCKS 5":
+        await ButtonState.PERM_C.set()
+        fixed_countries = [
+            "UNITED STATES",
+            "CANADA",
+            "SPAIN",
+            "GERMANY",
+            "UNITED KINGDOM",
+        ]
+        callback_options = [
+            types.InlineKeyboardButton(
+                text=country.capitalize(), callback_data=country.capitalize()
+            )
+            for country in fixed_countries
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await bot.send_message(
+            message.chat.id, perms_message, reply_markup=callback_markup
+        )
+    elif message.text == "شراء مودم روتيت":
+        await ButtonState.ROTATE.set()
+        client = RotateClient(base_url="https://bot.mega-panel.net/api/web/index.php/v1/",
+                              email="stievelane@gmail.com",
+                              password="123123123")
+        raw_countries = client.list_all_countries()
+        countries = extract_country_names(raw_countries)
+        callback_options = [
+            types.InlineKeyboardButton(
+                text=country.capitalize(), callback_data=country.capitalize()
+            )
+            for country in countries
+        ]
+
+        callback_markup = types.InlineKeyboardMarkup(row_width=1)
+        for option in callback_options:
+            callback_markup.add(option)
+
+        await bot.send_message(
+            message.chat.id, 'شراء مودم روتيت', reply_markup=callback_markup
+        )
+
+
+@dp.callback_query_handler(state=ButtonState.ROTATE)
+async def handle_roatae_country_selected(query: types.CallbackQuery, state: FSMContext):
+    if query.data in ['United states', 'United kingdom']:
+        query.data = query.data.upper()
+    else:
+        query.data = query.data.Capitalize()
+    query_data = query.data
+    await state.update_data(selected_rotate_country=query_data)
+    data = await state.get_data()
+    raw_list = 
+    callback_options = [
+        types.InlineKeyboardButton(
+            text=isp.capitalize(), callback_data=isp.capitalize()
+        )
+        for isp in isps
+    ]
+
+    callback_markup = types.InlineKeyboardMarkup(row_width=1)
+    for option in callback_options:
+        callback_markup.add(option)
+    await ButtonState.ROTATE_CITY.set()
+    await query.message.edit_reply_markup(reply_markup=callback_markup)
+
+
+@dp.callback_query_handler(state=ButtonState.ROTATE_CITY)
+async def handle_roatae_country_selected(query: types.CallbackQuery, state: FSMContext):
+    query_data = query.data
+    data = await state.get_data()
+    selected_country = date[selected_perm_country]
+    # Store the selected filter in session
+    await state.update_data(selected_perm_country=query_data)
+
+    isps = PremSocksClient.get_isp_for_country(query_data)
+
+    # Split the states list into groups of 4
+    callback_options = [
+        types.InlineKeyboardButton(
+            text=isp.capitalize(), callback_data=isp.capitalize()
+        )
+        for isp in isps
+    ]
+
+    callback_markup = types.InlineKeyboardMarkup(row_width=1)
+    for option in callback_options:
+        callback_markup.add(option)
+    await ButtonState.ROTATE_CITY.set()
+    await query.message.edit_reply_markup(reply_markup=callback_markup)
+
+
+@dp.callback_query_handler(state=ButtonState.PERM_C)
+async def handle_perm_country_select(query: types.CallbackQuery, state: FSMContext):
+    query_data = query.data.upper()
+    # Store the selected filter in session
+    await state.update_data(selected_perm_country=query_data)
+    data = await state.get_data()
+    isps = PremSocksClient.get_isp_for_country(query_data)
+
+    # Split the states list into groups of 4
+    callback_options = [
+        types.InlineKeyboardButton(
+            text=isp.capitalize(), callback_data=isp.capitalize()
+        )
+        for isp in isps
+    ]
+
+    callback_markup = types.InlineKeyboardMarkup(row_width=1)
+    for option in callback_options:
+        callback_markup.add(option)
+    await ButtonState.PERM_I.set()
+    await query.message.edit_reply_markup(reply_markup=callback_markup)
+
+
+@dp.callback_query_handler(state=ButtonState.PERM_I)
+async def handle_perm_isp_select(query: types.CallbackQuery, state: FSMContext):
+    isp = query.data
+
+    data = await state.get_data()
+    country = prem_mapper.get(data["selected_perm_country"])
+    await bot.send_message(query.from_user.id, "تتم الان عملية الشراء")
+    client = PremSocksClient(api_key=config("SOCKS_PREM"))
+    response = client.order_proxy(country, isp)
+    data = response["data"][0]
+    result = "\n".join([f"{key}: {value}" for key, value in data.items()])
+
+    await bot.send_message(query.from_user.id, result)
+    await ButtonState.MAIN_MENU.set()
+    await show_main_menu(query.message)
+
+
 # Handlers for button selections
 @dp.message_handler(text=BUTTON_TEXTS["main_menu"], state=ButtonState.MAIN_MENU)
 async def main_menu_selected(message: types.Message, state: FSMContext):
     await ButtonState.MAIN_MENU.set()
     if message.text == "شراء بروكسي":
-        await ButtonState.PAYMENT.set()
+        await ButtonState.PAYMENT_OPTIONS.set()
         await show_payment_options(message)
     elif message.text == "حسابي":
         await ButtonState.ACCOUNT.set()
@@ -387,7 +537,7 @@ async def show_account_menu(message: types.Message):
 
 
 @dp.message_handler(state=ButtonState.PAYMENT)
-async def payment_option_selected(message: types.Message, state: FSMContext):
+async def socks_option_selected(message: types.Message, state: FSMContext):
     await ButtonState.SOCKS9800.set()
     fixed_countries = [
         "UNITED STATES",
@@ -475,7 +625,7 @@ async def handle_socks9800_filters_callback(
     # Store the selected filter in session
     await state.update_data(selected_filter=query_data)
     data = await state.get_data()
-    proxies_list = socks_response["result"]["ProxyList"]
+    proxies_list = responses["socks"]["result"]["ProxyList"]
     country_query = data["selected_country"]
     if query_data == "By state":
         await ButtonState.STATE9800.set()
@@ -718,7 +868,55 @@ async def non_voip_handler(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ButtonState.CHARGE)
 async def charge_balance(message: types.Message, state: FSMContext):
     # Process the user's reply message here
-    await state.finish()  # Clear the current state
+    await ButtonState.MAIN_MENU.set()  # Clear the current state
+    await show_main_menu(message)
+
+
+@dp.message_handler(
+    lambda message: message.text.startswith("SOCKS5"),
+    state=ButtonState.SOCKSFILTERSELECTED,
+)
+async def socks_payment_handler(message: types.Message, state: FSMContext):
+    # Your logic for handling messages that start with "socks" goes here
+
+    message_text = message.text.replace("SOCKS5:", "")
+    socks_response = responses["socks"]["result"]["ProxyList"]
+    data = get_dict_by_proxy_id(proxy_list=socks_response, proxy_id=int(message_text))
+
+    client = TrueSocksClient(api_key=config("SOCKS_API_KEY"))
+    response = client.order(proxy=int(message_text))["result"]["HistoryEntry"][
+        "ConnectInfo"
+    ]
+
+    result = "\n".join([f"{key}: {value}" for key, value in response.items()])
+    await bot.send_message(message.from_user.id, "تتم الان عملية الشراء .....")
+
+    await bot.send_message(message.from_user.id, result)
+    await ButtonState.MAIN_MENU.set()  # Clear the current state
+    await show_main_menu(message)
+
+
+@dp.message_handler(
+    lambda message: message.text.startswith("SOCKS5"),
+    state=ButtonState.STATE9800,
+)
+async def socks_payment_state_handler(message: types.Message, state: FSMContext):
+    # Your logic for handling messages that start with "socks" goes here
+
+    message_text = message.text.replace("SOCKS5:", "")
+    socks_response = responses["socks"]["result"]["ProxyList"]
+    data = get_dict_by_proxy_id(proxy_list=socks_response, proxy_id=int(message_text))
+
+    client = TrueSocksClient(api_key=config("SOCKS_API_KEY"))
+    response = client.order(proxy=int(message_text))["result"]["HistoryEntry"][
+        "ConnectInfo"
+    ]
+
+    result = "\n".join([f"{key}: {value}" for key, value in response.items()])
+    await bot.send_message(message.from_user.id, "تتم الان عملية الشراء .....")
+
+    await bot.send_message(message.from_user.id, result)
+    await ButtonState.MAIN_MENU.set()  # Clear the current state
     await show_main_menu(message)
 
 
@@ -819,7 +1017,9 @@ async def handle_inline_socks_state_query(query: InlineQuery):
         proxy_type = query_parts[0].strip()  # Extract proxy type
         country = query_parts[1].strip()  # Extract country
         state = query_parts[2].strip()  # Extract state
-        state_proxies = filter_by_state(socks_response["result"]["ProxyList"], state)
+        state_proxies = filter_by_state(
+            responses["socks"]["result"]["ProxyList"], state
+        )
         state_proxies = state_proxies[:40]
         results = []
         for proxy in state_proxies:
@@ -862,7 +1062,7 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
         country = query_parts[1].strip()  # Extract country
         # proxies = sort_proxies_by_speed(countries)
         country_proxies = filter_by_country(
-            socks_response["result"]["ProxyList"], country
+            responses["socks"]["result"]["ProxyList"], country
         )
         country_proxies = country_proxies[:40]
         proxies = sort_proxies_by_speed(country_proxies)
@@ -872,12 +1072,15 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
             id = proxy["ProxyID"]
             city = proxy["City"]
             code = proxy["CountryCode"]
-            zip = proxy["ZipCode"]
+            zipcode = proxy["ZipCode"]
+            region = proxy["Region"]
+            hostname = proxy["Hostname"]
             speed = proxy["Speed"]
             quality = proxy["UpTimeQuality"]
             isp = proxy["ISP"]
             title = f"{city}-speed:{speed}-quality:{quality}"
             content = f"{proxy_type}:{id}"
+
             result = InlineQueryResultArticle(
                 id=str(id),
                 title=title,
@@ -893,7 +1096,7 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
         country = query_parts[2].strip()
         isp = query_parts[3].strip()
         country_proxies = filter_by_country(
-            socks_response["result"]["ProxyList"], country
+            responses["socks"]["result"]["ProxyList"], country
         )
         country_proxies = country_proxies
         proxies = filter_proxy_by_isp(country_proxies, isp)
@@ -932,10 +1135,10 @@ async def handle_socks_speed_or_isp_query(query: InlineQuery):
 
 
 if __name__ == "__main__":
-    socks_response = get_perm_socks_usa.delay().get()
-    usa_response = get_perm_socks_usa.delay().get()
-    uk_response = get_perm_socks_uk.delay().get()
-    canada_response = get_perm_socks_canada.delay().get()
-    germany_response = get_perm_socks_germany.delay().get()
-    spain_response = get_perm_socks_spain.delay().get()
+    responses["socks"] = get_daily_socks_proxies()
+    # responses["usa"] = get_perm_socks_usa()
+    # responses["uk"] = get_perm_socks_uk()
+    # responses["canada"] = get_perm_socks_canada()
+    # responses["germany"] = get_perm_socks_germany()
+    # responses["spain"] = get_perm_socks_spain()
     executor.start_polling(dp, skip_updates=True)
